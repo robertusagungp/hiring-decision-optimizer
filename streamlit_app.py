@@ -13,42 +13,177 @@ else:
 
 
 # =============================
-# RULE-BASED SCORING
+# LANGUAGE SYSTEM
 # =============================
 
-def score_candidate(experience, skill_match, test_score, interview_score):
+LANGUAGES = {
+    "English": {
+        "title": "Hiring Decision Optimizer",
+        "position": "Job Position",
+        "experience": "Years of Experience",
+        "skill": "Skill Match (%)",
+        "test": "Technical Test Score",
+        "interview": "Interview Score",
+        "education": "Education Level",
+        "current_salary": "Current Salary",
+        "expected_salary": "Expected Salary",
+        "salary_budget": "Salary Budget",
+        "leadership": "Leadership Experience (years)",
+        "evaluate": "Evaluate Candidate",
+        "result": "Result",
+        "score": "Score",
+        "decision": "Decision",
+        "explanation": "AI Explanation",
+    },
+    "Bahasa Indonesia": {
+        "title": "Sistem Evaluasi Kandidat",
+        "position": "Posisi Pekerjaan",
+        "experience": "Pengalaman Kerja (tahun)",
+        "skill": "Kecocokan Skill (%)",
+        "test": "Skor Tes Teknis",
+        "interview": "Skor Interview",
+        "education": "Pendidikan",
+        "current_salary": "Gaji Saat Ini",
+        "expected_salary": "Ekspektasi Gaji",
+        "salary_budget": "Budget Gaji",
+        "leadership": "Pengalaman Leadership (tahun)",
+        "evaluate": "Evaluasi Kandidat",
+        "result": "Hasil",
+        "score": "Skor",
+        "decision": "Keputusan",
+        "explanation": "Penjelasan AI",
+    }
+}
 
-    experience_score = min(experience * 10, 100)
 
-    total_score = (
-        0.25 * experience_score +
-        0.25 * skill_match +
-        0.25 * test_score +
-        0.25 * interview_score
+# =============================
+# ROLE REQUIREMENTS
+# =============================
+
+ROLE_REQUIREMENTS = {
+
+    "Junior": {
+        "min_experience": 0,
+        "ideal_experience": 2,
+        "salary_multiplier": 1.2
+    },
+
+    "Officer": {
+        "min_experience": 2,
+        "ideal_experience": 4,
+        "salary_multiplier": 1.3
+    },
+
+    "Senior": {
+        "min_experience": 4,
+        "ideal_experience": 7,
+        "salary_multiplier": 1.4
+    },
+
+    "Supervisor": {
+        "min_experience": 6,
+        "ideal_experience": 10,
+        "salary_multiplier": 1.5
+    },
+
+    "Manager": {
+        "min_experience": 8,
+        "ideal_experience": 15,
+        "salary_multiplier": 1.6
+    }
+}
+
+
+# =============================
+# EDUCATION SCORE
+# =============================
+
+EDUCATION_SCORE = {
+    "High School": 50,
+    "Diploma": 65,
+    "Bachelor": 75,
+    "Master": 90,
+    "PhD": 100
+}
+
+
+# =============================
+# ADVANCED SCORING SYSTEM
+# =============================
+
+def score_candidate(data):
+
+    role = data["position"]
+    role_req = ROLE_REQUIREMENTS[role]
+
+    experience = data["experience"]
+    skill = data["skill"]
+    test = data["test"]
+    interview = data["interview"]
+    education = EDUCATION_SCORE[data["education"]]
+    leadership = data["leadership"]
+
+    current_salary = data["current_salary"]
+    expected_salary = data["expected_salary"]
+    budget = data["budget"]
+
+    # Experience score
+    exp_score = min((experience / role_req["ideal_experience"]) * 100, 100)
+
+    # Leadership score (important for higher roles)
+    leadership_score = min((leadership / role_req["ideal_experience"]) * 100, 100)
+
+    # Salary fit score
+    if expected_salary <= budget:
+        salary_score = 100
+    else:
+        salary_score = max(0, 100 - ((expected_salary - budget) / budget) * 100)
+
+    # Salary increase realism
+    if current_salary > 0:
+        raise_percent = ((expected_salary - current_salary) / current_salary) * 100
+        if raise_percent <= 30:
+            raise_score = 100
+        elif raise_percent <= 50:
+            raise_score = 70
+        else:
+            raise_score = 40
+    else:
+        raise_score = 50
+
+    total = (
+        0.15 * exp_score +
+        0.20 * skill +
+        0.15 * test +
+        0.15 * interview +
+        0.10 * education +
+        0.10 * leadership_score +
+        0.10 * salary_score +
+        0.05 * raise_score
     )
 
-    total_score = round(total_score, 2)
+    total = round(total, 2)
 
-    if total_score >= 80:
+    if total >= 85:
         decision = "Strong Hire"
-    elif total_score >= 65:
+    elif total >= 70:
         decision = "Hire"
-    elif total_score >= 50:
+    elif total >= 55:
         decision = "Consider"
     else:
         decision = "No Hire"
 
-    return total_score, decision
+    return total, decision
 
 
 # =============================
-# GROQ EXPLAIN FUNCTION
+# GROQ EXPLANATION
 # =============================
 
-def groq_explain(candidate, score, decision):
+def groq_explain(data, score, decision, language):
 
     if not GROQ_API_KEY:
-        return "⚠️ GROQ_API_KEY not configured."
+        return "GROQ_API_KEY not configured"
 
     url = "https://api.groq.com/openai/v1/chat/completions"
 
@@ -57,109 +192,125 @@ def groq_explain(candidate, score, decision):
         "Content-Type": "application/json"
     }
 
-    prompt = f"""
-You are an HR hiring assistant.
+    if language == "Bahasa Indonesia":
+        prompt = f"""
+Anda adalah HR expert.
 
-Candidate profile:
-Experience: {candidate['experience']} years
-Skill match: {candidate['skill_match']} / 100
-Technical test score: {candidate['test_score']} / 100
-Interview score: {candidate['interview_score']} / 100
+Data kandidat:
+Posisi: {data['position']}
+Pengalaman: {data['experience']} tahun
+Skill match: {data['skill']}
+Test score: {data['test']}
+Interview score: {data['interview']}
+Pendidikan: {data['education']}
+Gaji saat ini: {data['current_salary']}
+Ekspektasi gaji: {data['expected_salary']}
+Budget: {data['budget']}
 
-Overall score: {score}
+Skor: {score}
+Keputusan: {decision}
+
+Berikan penjelasan profesional.
+"""
+    else:
+
+        prompt = f"""
+You are an HR expert.
+
+Candidate data:
+Position: {data['position']}
+Experience: {data['experience']}
+Skill match: {data['skill']}
+Test score: {data['test']}
+Interview score: {data['interview']}
+Education: {data['education']}
+Current salary: {data['current_salary']}
+Expected salary: {data['expected_salary']}
+Budget: {data['budget']}
+
+Score: {score}
 Decision: {decision}
 
-Explain briefly and professionally why this candidate should or should not be hired.
+Explain professionally.
 """
 
-    data = {
+    data_api = {
         "model": "llama-3.3-70b-versatile",
         "messages": [
-            {
-                "role": "user",
-                "content": prompt
-            }
+            {"role": "user", "content": prompt}
         ],
         "temperature": 0.3
     }
 
-    try:
+    r = requests.post(url, headers=headers, json=data_api)
 
-        response = requests.post(
-            url,
-            headers=headers,
-            json=data,
-            timeout=30
-        )
+    if r.status_code == 200:
+        return r.json()["choices"][0]["message"]["content"]
 
-        if response.status_code == 200:
-            return response.json()["choices"][0]["message"]["content"]
-
-        else:
-            return f"⚠️ Groq API error:\n{response.text}"
-
-    except Exception as e:
-        return f"⚠️ Connection error: {str(e)}"
+    return r.text
 
 
 # =============================
-# STREAMLIT UI
+# UI
 # =============================
 
-st.set_page_config(
-    page_title="Hiring Decision Optimizer",
-    page_icon="👔",
-    layout="centered"
+language = st.selectbox("Language / Bahasa", ["English", "Bahasa Indonesia"])
+
+T = LANGUAGES[language]
+
+st.title(T["title"])
+
+position = st.selectbox(
+    T["position"],
+    ["Junior", "Officer", "Senior", "Supervisor", "Manager"]
 )
 
-st.title("👔 Hiring Decision Optimizer")
+experience = st.slider(T["experience"], 0, 20, 3)
 
-st.write("Rule-based scoring with Groq LLaMA 3.3 explanation")
+skill = st.slider(T["skill"], 0, 100, 70)
 
-st.divider()
+test = st.slider(T["test"], 0, 100, 75)
 
-experience = st.slider("Years of Experience", 0, 15, 3)
+interview = st.slider(T["interview"], 0, 100, 80)
 
-skill_match = st.slider("Skill Match (%)", 0, 100, 70)
+education = st.selectbox(
+    T["education"],
+    list(EDUCATION_SCORE.keys())
+)
 
-test_score = st.slider("Technical Test Score", 0, 100, 75)
+leadership = st.slider(T["leadership"], 0, 20, 0)
 
-interview_score = st.slider("Interview Score", 0, 100, 80)
+current_salary = st.number_input(T["current_salary"], 0)
 
-st.divider()
+expected_salary = st.number_input(T["expected_salary"], 0)
 
-if st.button("Evaluate Candidate"):
+budget = st.number_input(T["salary_budget"], 0)
 
-    score, decision = score_candidate(
-        experience,
-        skill_match,
-        test_score,
-        interview_score
-    )
 
-    st.subheader("Result")
+if st.button(T["evaluate"]):
 
-    col1, col2 = st.columns(2)
-
-    col1.metric("Score", score)
-    col2.metric("Decision", decision)
-
-    candidate = {
+    data = {
+        "position": position,
         "experience": experience,
-        "skill_match": skill_match,
-        "test_score": test_score,
-        "interview_score": interview_score
+        "skill": skill,
+        "test": test,
+        "interview": interview,
+        "education": education,
+        "leadership": leadership,
+        "current_salary": current_salary,
+        "expected_salary": expected_salary,
+        "budget": budget
     }
 
-    st.divider()
+    score, decision = score_candidate(data)
 
-    st.subheader("AI Explanation (Groq LLaMA 3.3)")
+    st.subheader(T["result"])
 
-    with st.spinner("Generating explanation..."):
-        explanation = groq_explain(candidate, score, decision)
+    st.metric(T["score"], score)
+    st.metric(T["decision"], decision)
+
+    st.subheader(T["explanation"])
+
+    explanation = groq_explain(data, score, decision, language)
 
     st.write(explanation)
-
-
-st.divider()
-st.caption("Powered by Groq • llama-3.3-70b-versatile")
