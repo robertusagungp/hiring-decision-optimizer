@@ -6,7 +6,6 @@ import os
 # LOAD GROQ API KEY
 # =============================
 
-# Streamlit Cloud secrets first
 if "GROQ_API_KEY" in st.secrets:
     GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
 else:
@@ -43,7 +42,7 @@ def score_candidate(experience, skill_match, test_score, interview_score):
 
 
 # =============================
-# GROQ LLM EXPLANATION
+# GROQ EXPLAIN FUNCTION
 # =============================
 
 def groq_explain(candidate, score, decision):
@@ -62,10 +61,10 @@ def groq_explain(candidate, score, decision):
 You are an HR hiring assistant.
 
 Candidate profile:
-- Experience: {candidate['experience']} years
-- Skill match: {candidate['skill_match']} / 100
-- Technical test score: {candidate['test_score']} / 100
-- Interview score: {candidate['interview_score']} / 100
+Experience: {candidate['experience']} years
+Skill match: {candidate['skill_match']} / 100
+Technical test score: {candidate['test_score']} / 100
+Interview score: {candidate['interview_score']} / 100
 
 Overall score: {score}
 Decision: {decision}
@@ -74,7 +73,7 @@ Explain briefly and professionally why this candidate should or should not be hi
 """
 
     data = {
-        "model": "llama3-70b-8192",
+        "model": "llama-3.3-70b-versatile",
         "messages": [
             {
                 "role": "user",
@@ -97,7 +96,7 @@ Explain briefly and professionally why this candidate should or should not be hi
             return response.json()["choices"][0]["message"]["content"]
 
         else:
-            return f"⚠️ Groq API error: {response.text}"
+            return f"⚠️ Groq API error:\n{response.text}"
 
     except Exception as e:
         return f"⚠️ Connection error: {str(e)}"
@@ -115,29 +114,17 @@ st.set_page_config(
 
 st.title("👔 Hiring Decision Optimizer")
 
-st.write("Rule-based hiring scoring with Groq AI explanation")
+st.write("Rule-based scoring with Groq LLaMA 3.3 explanation")
 
 st.divider()
 
-experience = st.slider(
-    "Years of Experience",
-    0, 15, 3
-)
+experience = st.slider("Years of Experience", 0, 15, 3)
 
-skill_match = st.slider(
-    "Skill Match (%)",
-    0, 100, 70
-)
+skill_match = st.slider("Skill Match (%)", 0, 100, 70)
 
-test_score = st.slider(
-    "Technical Test Score",
-    0, 100, 75
-)
+test_score = st.slider("Technical Test Score", 0, 100, 75)
 
-interview_score = st.slider(
-    "Interview Score",
-    0, 100, 80
-)
+interview_score = st.slider("Interview Score", 0, 100, 80)
 
 st.divider()
 
@@ -154,11 +141,8 @@ if st.button("Evaluate Candidate"):
 
     col1, col2 = st.columns(2)
 
-    with col1:
-        st.metric("Score", score)
-
-    with col2:
-        st.metric("Decision", decision)
+    col1.metric("Score", score)
+    col2.metric("Decision", decision)
 
     candidate = {
         "experience": experience,
@@ -169,7 +153,7 @@ if st.button("Evaluate Candidate"):
 
     st.divider()
 
-    st.subheader("AI Explanation (Groq)")
+    st.subheader("AI Explanation (Groq LLaMA 3.3)")
 
     with st.spinner("Generating explanation..."):
         explanation = groq_explain(candidate, score, decision)
@@ -177,10 +161,5 @@ if st.button("Evaluate Candidate"):
     st.write(explanation)
 
 
-# =============================
-# FOOTER
-# =============================
-
 st.divider()
-
-st.caption("Powered by Groq • LLaMA3-70B")
+st.caption("Powered by Groq • llama-3.3-70b-versatile")
