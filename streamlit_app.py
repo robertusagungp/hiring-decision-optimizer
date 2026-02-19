@@ -3,44 +3,33 @@ import requests
 import os
 
 # =============================
-# CONFIG — LOAD GROK API KEY
+# LOAD GROQ API KEY
 # =============================
 
-# Support Streamlit Cloud secrets
-if "GROK_API_KEY" in st.secrets:
-    GROK_API_KEY = st.secrets["GROK_API_KEY"]
+# Streamlit Cloud secrets first
+if "GROQ_API_KEY" in st.secrets:
+    GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
 else:
-    GROK_API_KEY = os.getenv("GROK_API_KEY")
+    GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
 
 # =============================
-# RULE-BASED SCORING FUNCTION
+# RULE-BASED SCORING
 # =============================
 
 def score_candidate(experience, skill_match, test_score, interview_score):
-    """
-    Simple hiring scoring system
-    """
 
-    # Convert experience to score (max 100)
     experience_score = min(experience * 10, 100)
 
-    # Use values directly
-    skill_score = skill_match
-    test_score = test_score
-    interview_score = interview_score
-
-    # Weighted average
     total_score = (
         0.25 * experience_score +
-        0.25 * skill_score +
+        0.25 * skill_match +
         0.25 * test_score +
         0.25 * interview_score
     )
 
     total_score = round(total_score, 2)
 
-    # Decision logic
     if total_score >= 80:
         decision = "Strong Hire"
     elif total_score >= 65:
@@ -54,22 +43,18 @@ def score_candidate(experience, skill_match, test_score, interview_score):
 
 
 # =============================
-# GROK EXPLANATION FUNCTION
+# GROQ LLM EXPLANATION
 # =============================
 
-def grok_explain(candidate, score, decision):
-    """
-    Call Grok API to explain hiring decision
-    """
+def groq_explain(candidate, score, decision):
 
-    # Safe fallback if no API key
-    if not GROK_API_KEY:
-        return "⚠️ GROK_API_KEY not configured. Showing rule-based result only."
+    if not GROQ_API_KEY:
+        return "⚠️ GROQ_API_KEY not configured."
 
-    url = "https://api.x.ai/v1/chat/completions"
+    url = "https://api.groq.com/openai/v1/chat/completions"
 
     headers = {
-        "Authorization": f"Bearer {GROK_API_KEY}",
+        "Authorization": f"Bearer {GROQ_API_KEY}",
         "Content-Type": "application/json"
     }
 
@@ -85,12 +70,11 @@ Candidate profile:
 Overall score: {score}
 Decision: {decision}
 
-Explain briefly why this candidate should or should not be hired.
-Keep explanation professional and concise.
+Explain briefly and professionally why this candidate should or should not be hired.
 """
 
     data = {
-        "model": "grok-2-latest",
+        "model": "llama3-70b-8192",
         "messages": [
             {
                 "role": "user",
@@ -113,7 +97,7 @@ Keep explanation professional and concise.
             return response.json()["choices"][0]["message"]["content"]
 
         else:
-            return f"⚠️ Grok API error: {response.status_code}"
+            return f"⚠️ Groq API error: {response.text}"
 
     except Exception as e:
         return f"⚠️ Connection error: {str(e)}"
@@ -131,47 +115,34 @@ st.set_page_config(
 
 st.title("👔 Hiring Decision Optimizer")
 
-st.write("Rule-based hiring scoring with Grok AI explanation")
+st.write("Rule-based hiring scoring with Groq AI explanation")
 
 st.divider()
 
-# Input fields
-
 experience = st.slider(
     "Years of Experience",
-    min_value=0,
-    max_value=15,
-    value=3
+    0, 15, 3
 )
 
 skill_match = st.slider(
     "Skill Match (%)",
-    min_value=0,
-    max_value=100,
-    value=70
+    0, 100, 70
 )
 
 test_score = st.slider(
     "Technical Test Score",
-    min_value=0,
-    max_value=100,
-    value=75
+    0, 100, 75
 )
 
 interview_score = st.slider(
     "Interview Score",
-    min_value=0,
-    max_value=100,
-    value=80
+    0, 100, 80
 )
 
 st.divider()
 
-# Evaluate button
-
 if st.button("Evaluate Candidate"):
 
-    # Calculate score
     score, decision = score_candidate(
         experience,
         skill_match,
@@ -181,8 +152,13 @@ if st.button("Evaluate Candidate"):
 
     st.subheader("Result")
 
-    st.metric("Score", score)
-    st.metric("Decision", decision)
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.metric("Score", score)
+
+    with col2:
+        st.metric("Decision", decision)
 
     candidate = {
         "experience": experience,
@@ -193,10 +169,10 @@ if st.button("Evaluate Candidate"):
 
     st.divider()
 
-    st.subheader("AI Explanation (Grok)")
+    st.subheader("AI Explanation (Groq)")
 
     with st.spinner("Generating explanation..."):
-        explanation = grok_explain(candidate, score, decision)
+        explanation = groq_explain(candidate, score, decision)
 
     st.write(explanation)
 
@@ -207,4 +183,4 @@ if st.button("Evaluate Candidate"):
 
 st.divider()
 
-st.caption("Hiring Decision Optimizer • Rule-based + Grok AI")
+st.caption("Powered by Groq • LLaMA3-70B")
